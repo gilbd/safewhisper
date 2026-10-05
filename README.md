@@ -30,6 +30,18 @@ The model is downloaded only during `docker build`. Runtime has no network names
 
 ## Build and run
 
+For local Python tooling:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pip install -e .
+make test
+```
+
+Build and run the isolated engine:
+
 ```bash
 docker compose build
 docker compose up -d
