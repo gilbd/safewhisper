@@ -9,7 +9,7 @@ services:
     tmpfs:
       - /tmp:size=256m,mode=1777
     volumes:
-      - safewhisper-socket:/run/safewhisper
+      - ${HOME}/.safewhisper/run:/run/safewhisper
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -17,5 +17,4 @@ services:
     mem_limit: 6g
     restart: unless-stopped
 
-volumes:
-  safewhisper-socket:
+volumes: {}

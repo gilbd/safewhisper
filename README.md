@@ -49,9 +49,18 @@ docker compose up -d
 
 The first build downloads the model and is large. Do it on a connected machine, then export/import the image or publish it to the company's approved registry before entering the closed network.
 
-## Current status
+## One-command macOS setup
 
-The repository currently contains the isolated engine protocol and container boundary. The next vertical slice adds the native macOS recorder, global hotkey, clipboard, and paste integration.
+After Docker Desktop is running:
+
+```bash
+./scripts/install.sh
+```
+
+The installer creates `~/.safewhisper/run`, builds the isolated engine, starts it with no network, builds the native macOS client, and places the client at `~/.safewhisper/bin/SafeWhisperMac`.
+
+macOS will require explicit Microphone and Accessibility permissions. SafeWhisper does not bypass those permissions.
+
 
 ## Security notes
 

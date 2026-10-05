@@ -13,7 +13,10 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var currentRecordingURL: URL?
     private let hotkeyModifiers: NSEvent.ModifierFlags = [.command, .shift]
     private let hotkeyKeyCode: UInt16 = 49 // Space
-    private let socketPath = "/run/safewhisper/engine.sock"
+    private var socketPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".safewhisper/run/engine.sock").path
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
