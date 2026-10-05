@@ -1,0 +1,21 @@
+[project]
+name = "whisperflow"
+version = "0.1.0"
+description = "Local Hebrew and English speech-to-text with global capture and paste on macOS"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+engine = ["faster-whisper>=1.1.0"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+whisperflow = "whisperflow.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
