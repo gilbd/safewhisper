@@ -3,7 +3,7 @@ import AVFoundation
 import CoreGraphics
 import Foundation
 
-final class WhisperFlowApp: NSObject, NSApplicationDelegate {
+final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var recorder: AVAudioEngine?
     private var audioFile: AVAudioFile?
@@ -13,7 +13,7 @@ final class WhisperFlowApp: NSObject, NSApplicationDelegate {
     private var currentRecordingURL: URL?
     private let hotkeyModifiers: NSEvent.ModifierFlags = [.command, .shift]
     private let hotkeyKeyCode: UInt16 = 49 // Space
-    private let socketPath = "/run/whisperflow/engine.sock"
+    private let socketPath = "/run/safewhisper/engine.sock"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -33,7 +33,7 @@ final class WhisperFlowApp: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Start/stop: ⌘⇧Space", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit WhisperFlow", action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit SafeWhisper", action: #selector(quit), keyEquivalent: "q"))
         return menu
     }
 
@@ -57,7 +57,7 @@ final class WhisperFlowApp: NSObject, NSApplicationDelegate {
 
     private func requestMicrophonePermission() {
         AVCaptureDevice.requestAccess(for: .audio) { granted in
-            if !granted { NSLog("WhisperFlow: microphone permission denied") }
+            if !granted { NSLog("SafeWhisper: microphone permission denied") }
         }
     }
 
@@ -70,20 +70,20 @@ final class WhisperFlowApp: NSObject, NSApplicationDelegate {
         let engine = AVAudioEngine()
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
-        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("whisperflow-\(UUID().uuidString).caf")
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("safewhisper-\(UUID().uuidString).caf")
         do {
             audioFile = try AVAudioFile(forWriting: url, settings: format.settings)
             currentRecordingURL = url
             input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
                 do { try self?.audioFile?.write(from: buffer) }
-                catch { NSLog("WhisperFlow audio write failed: \(error)") }
+                catch { NSLog("SafeWhisper audio write failed: \(error)") }
             }
             try engine.start()
             recorder = engine
             isRecording = true
             statusItem.button?.title = "● WF"
         } catch {
-            NSLog("WhisperFlow recording failed: \(error)")
+            NSLog("SafeWhisper recording failed: \(error)")
             cleanupRecording()
         }
     }
@@ -110,7 +110,7 @@ final class WhisperFlowApp: NSObject, NSApplicationDelegate {
                 guard response.ok, let text = response.text, !text.isEmpty else { throw FlowError.message(response.error ?? "empty transcript") }
                 DispatchQueue.main.async { self?.paste(text) }
             } catch {
-                NSLog("WhisperFlow transcription failed: \(error)")
+                NSLog("SafeWhisper transcription failed: \(error)")
             }
             try? FileManager.default.removeItem(at: file)
         }
@@ -202,6 +202,6 @@ private final class UnixConnection {
 }
 
 let app = NSApplication.shared
-let delegate = WhisperFlowApp()
+let delegate = SafeWhisperApp()
 app.delegate = delegate
 app.run()

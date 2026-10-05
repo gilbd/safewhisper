@@ -1,4 +1,4 @@
-# WhisperFlow product requirements
+# SafeWhisper product requirements
 
 ## User story
 

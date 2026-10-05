@@ -10,10 +10,10 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 
-SOCKET_PATH = Path(os.environ.get("WHISPERFLOW_SOCKET", "/run/whisperflow/engine.sock"))
-MODEL_NAME = os.environ.get("WHISPERFLOW_MODEL", "ivrit-ai/whisper-large-v3-turbo-ct2")
-MODEL_DEVICE = os.environ.get("WHISPERFLOW_DEVICE", "cpu")
-MODEL_COMPUTE = os.environ.get("WHISPERFLOW_COMPUTE", "int8")
+SOCKET_PATH = Path(os.environ.get("SAFEWHISPER_SOCKET", "/run/safewhisper/engine.sock"))
+MODEL_NAME = os.environ.get("SAFEWHISPER_MODEL", "ivrit-ai/whisper-large-v3-turbo-ct2")
+MODEL_DEVICE = os.environ.get("SAFEWHISPER_DEVICE", "cpu")
+MODEL_COMPUTE = os.environ.get("SAFEWHISPER_COMPUTE", "int8")
 
 MODEL = WhisperModel(MODEL_NAME, device=MODEL_DEVICE, compute_type=MODEL_COMPUTE)
 
@@ -43,7 +43,7 @@ class Handler(socketserver.StreamRequestHandler):
         if not audio or len(audio) > 25 * 1024 * 1024:
             return {"ok": False, "error": "audio is empty or too large"}
         suffix = request.get("suffix", ".wav")
-        with tempfile.NamedTemporaryFile(prefix="whisperflow-", suffix=suffix, delete=True) as temp:
+        with tempfile.NamedTemporaryFile(prefix="safewhisper-", suffix=suffix, delete=True) as temp:
             temp.write(audio)
             temp.flush()
             segments, info = MODEL.transcribe(temp.name, language=None, vad_filter=True)

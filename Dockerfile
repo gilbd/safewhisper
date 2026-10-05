@@ -19,11 +19,11 @@ COPY pyproject.toml ./
 COPY src ./src
 
 RUN pip install --no-cache-dir --no-deps . \
-    && useradd --create-home --uid 10001 whisperflow \
-    && mkdir -p /run/whisperflow /tmp \
-    && chown -R whisperflow:whisperflow /app /run/whisperflow /tmp /opt/huggingface
+    && useradd --create-home --uid 10001 safewhisper \
+    && mkdir -p /run/safewhisper /tmp \
+    && chown -R safewhisper:safewhisper /app /run/safewhisper /tmp /opt/huggingface
 
-USER whisperflow
-ENV WHISPERFLOW_SOCKET=/run/whisperflow/engine.sock
+USER safewhisper
+ENV SAFEWHISPER_SOCKET=/run/safewhisper/engine.sock
 
-ENTRYPOINT ["python", "-m", "whisperflow.engine"]
+ENTRYPOINT ["python", "-m", "safewhisper.engine"]

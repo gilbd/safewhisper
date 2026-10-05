@@ -3,13 +3,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: whisperflow-engine:local
+    image: safewhisper-engine:local
     network_mode: "none"
     read_only: true
     tmpfs:
       - /tmp:size=256m,mode=1777
     volumes:
-      - whisperflow-socket:/run/whisperflow
+      - safewhisper-socket:/run/safewhisper
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -18,4 +18,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  whisperflow-socket:
+  safewhisper-socket:

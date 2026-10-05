@@ -1,8 +1,8 @@
-# WhisperFlow
+# SafeWhisper
 
 Local-first Hebrew + English speech-to-text for macOS.
 
-WhisperFlow is designed for closed corporate networks:
+SafeWhisper is designed for closed corporate networks:
 
 - Global hotkey starts/stops recording.
 - Audio is transcribed by a local `faster-whisper` engine.
@@ -18,7 +18,7 @@ WhisperFlow is designed for closed corporate networks:
           |
           | Unix socket
           v
-[Docker: whisperflow-engine]
+[Docker: safewhisper-engine]
   network: none
   ivrit-ai/whisper-large-v3-turbo-ct2
           |

@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "WhisperFlowMac",
+    name: "SafeWhisperMac",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "WhisperFlowMac", targets: ["WhisperFlowMac"])
+        .executable(name: "SafeWhisperMac", targets: ["SafeWhisperMac"])
     ],
     targets: [
-        .executableTarget(name: "WhisperFlowMac")
+        .executableTarget(name: "SafeWhisperMac")
     ]
 )

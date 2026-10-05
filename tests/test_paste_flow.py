@@ -1,4 +1,4 @@
-from whisperflow.core import normalize_transcript, build_paste_payload
+from safewhisper.core import normalize_transcript, build_paste_payload
 
 
 def test_normalize_transcript_collapses_whitespace_without_destroying_hebrew():
