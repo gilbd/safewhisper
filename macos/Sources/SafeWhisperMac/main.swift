@@ -15,7 +15,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private let hotkeyKeyCode: UInt16 = 49 // Space
     private var socketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".safewhisper/run/engine.sock").path
+            .appendingPathComponent(".safewhisper/run/helper.sock").path
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

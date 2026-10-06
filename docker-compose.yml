@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: safewhisper-engine:local
+    container_name: safewhisper-engine
     network_mode: "none"
     read_only: true
     tmpfs:

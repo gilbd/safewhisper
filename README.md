@@ -7,19 +7,23 @@ SafeWhisper is designed for closed corporate networks:
 - Global hotkey starts/stops recording.
 - Audio is transcribed by a local `faster-whisper` engine.
 - The engine runs in Docker with `network_mode: none`.
-- The host app talks to the engine through a Unix socket, not TCP.
+- The macOS app talks to a host-only Unix socket helper; the helper bridges requests through `docker exec` to the engine Unix socket.
 - Transcript is copied to the clipboard and pasted into the active app.
 - No audio or transcript is sent to a cloud transcription provider.
 
 ## Architecture
 
 ```text
-[macOS hotkey + recorder]
+[macOS app]
           |
-          | Unix socket
+          | host-only Unix socket: ~/.safewhisper/run/helper.sock
+          v
+[SafeWhisper host helper]
+          |
+          | fixed docker exec bridge
           v
 [Docker: safewhisper-engine]
-  network: none
+  network_mode: none
   ivrit-ai/whisper-large-v3-turbo-ct2
           |
           v
@@ -57,7 +61,7 @@ After Docker Desktop is running:
 ./scripts/install.sh
 ```
 
-The installer creates `~/.safewhisper/run`, builds the isolated engine, starts it with no network, builds the native macOS client, and places the client at `~/.safewhisper/bin/SafeWhisperMac`.
+The installer creates `~/.safewhisper/run`, builds the isolated engine, starts it with no network, installs the host helper as a LaunchAgent, builds the native macOS client, and places the client at `~/.safewhisper/bin/SafeWhisperMac`.
 
 macOS will require explicit Microphone and Accessibility permissions. SafeWhisper does not bypass those permissions.
 
@@ -66,5 +70,6 @@ macOS will require explicit Microphone and Accessibility permissions. SafeWhispe
 
 - Do not add API keys to this repository.
 - Do not expose the engine on `0.0.0.0`.
-- The Unix socket is the only runtime boundary.
+- The host helper socket is mode `0600` and is never exposed on TCP.
+- The helper accepts only `health` and `transcribe` requests and runs a fixed `docker exec` bridge.
 - The desktop client should request macOS Microphone, Accessibility, and Input Monitoring permissions explicitly and document why.

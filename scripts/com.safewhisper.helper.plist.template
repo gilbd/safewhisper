@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.safewhisper.helper</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__VENV__/bin/python</string>
+        <string>-m</string>
+        <string>safewhisper.helper</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__ROOT_DIR__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>__ROOT_DIR__/src</string>
+        <key>SAFEWHISPER_HELPER_SOCKET</key>
+        <string>__HOME__/.safewhisper/run/helper.sock</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>SAFEWHISPER_CONTAINER</key>
+        <string>safewhisper-engine</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.safewhisper/helper.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.safewhisper/helper.stderr.log</string>
+</dict>
+</plist>

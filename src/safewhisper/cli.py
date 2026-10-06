@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 
 from .client import request, transcribe_file
 
@@ -12,7 +13,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="safewhisper")
     parser.add_argument(
         "--socket",
-        default=os.environ.get("SAFEWHISPER_SOCKET", "/run/safewhisper/engine.sock"),
+        default=os.environ.get("SAFEWHISPER_SOCKET", str(Path.home() / ".safewhisper/run/helper.sock")),
         help="Unix socket exposed by the SafeWhisper engine",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
