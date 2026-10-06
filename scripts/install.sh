@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE_DIR="${HOME}/.safewhisper"
 RUN_DIR="${STATE_DIR}/run"
 APP_DIR="${STATE_DIR}/bin"
+APP_BUNDLE="${APP_DIR}/SafeWhisperMac.app"
 VENV_DIR="${STATE_DIR}/venv"
 PLIST_PATH="${HOME}/Library/LaunchAgents/com.safewhisper.helper.plist"
 
@@ -49,11 +50,16 @@ echo "[3/4] Building SafeWhisper macOS client"
 (
   cd "$ROOT_DIR/macos"
   swift build -c release
-  cp .build/arm64-apple-macosx/release/SafeWhisperMac "$APP_DIR/SafeWhisperMac"
+  rm -rf "$APP_BUNDLE"
+  mkdir -p "$APP_BUNDLE/Contents/MacOS"
+  cp .build/arm64-apple-macosx/release/SafeWhisperMac "$APP_BUNDLE/Contents/MacOS/SafeWhisperMac"
+  cp "$ROOT_DIR/macos/SafeWhisperMac.Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 )
-chmod +x "$APP_DIR/SafeWhisperMac"
+chmod +x "$APP_BUNDLE/Contents/MacOS/SafeWhisperMac"
 
 echo "[4/4] Installation complete"
 echo "Helper socket: $RUN_DIR/helper.sock"
-echo "Client: $APP_DIR/SafeWhisperMac"
-echo "Run the client manually, then grant Microphone and Accessibility permissions when macOS asks."
+echo "Client: $APP_BUNDLE"
+if [[ "${SAFEWHISPER_SKIP_PERMISSION_PROMPT:-0}" != "1" ]]; then
+  open "$APP_BUNDLE" >/dev/null 2>&1 || true
+fi

@@ -61,7 +61,7 @@ After Docker Desktop is running:
 ./scripts/install.sh
 ```
 
-The installer creates `~/.safewhisper/run`, builds the isolated engine, starts it with no network, installs the host helper as a LaunchAgent, builds the native macOS client, and places the client at `~/.safewhisper/bin/SafeWhisperMac`.
+The installer creates `~/.safewhisper/run`, builds the isolated engine, starts it with no network, installs the host helper as a LaunchAgent, builds a native `SafeWhisperMac.app` bundle with the microphone usage description, and opens it once so macOS can request the required permissions.
 
 macOS will require explicit Microphone and Accessibility permissions. SafeWhisper does not bypass those permissions.
 

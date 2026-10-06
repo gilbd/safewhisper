@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -25,6 +26,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         statusItem.menu = makeMenu()
         installHotkey()
         requestMicrophonePermission()
+        requestAccessibilityPermission()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -61,6 +63,15 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private func requestMicrophonePermission() {
         AVCaptureDevice.requestAccess(for: .audio) { granted in
             if !granted { NSLog("SafeWhisper: microphone permission denied") }
+        }
+    }
+
+    private func requestAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        guard !AXIsProcessTrustedWithOptions(options) else { return }
+        NSLog("SafeWhisper: Accessibility permission is required for global hotkey and paste")
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
         }
     }
 
