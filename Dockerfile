@@ -12,7 +12,7 @@ RUN apt-get update \
 RUN pip install --no-cache-dir faster-whisper==1.1.1 huggingface_hub==0.28.1
 
 # Network is needed only while building this image. Runtime can use --network none.
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('ivrit-ai/whisper-large-v3-turbo-ct2')"
+RUN python -c "from huggingface_hub import snapshot_download; p=snapshot_download('ivrit-ai/whisper-large-v3-turbo-ct2'); open('/opt/huggingface/model_path', 'w').write(p)"
 
 WORKDIR /app
 COPY pyproject.toml ./

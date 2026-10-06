@@ -15,6 +15,6 @@ services:
     cap_drop:
       - ALL
     mem_limit: 6g
-    restart: unless-stopped
+    restart: "no"
 
 volumes: {}

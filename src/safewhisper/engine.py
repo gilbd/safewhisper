@@ -12,6 +12,9 @@ from faster_whisper import WhisperModel
 
 SOCKET_PATH = Path(os.environ.get("SAFEWHISPER_SOCKET", "/run/safewhisper/engine.sock"))
 MODEL_NAME = os.environ.get("SAFEWHISPER_MODEL", "ivrit-ai/whisper-large-v3-turbo-ct2")
+MODEL_PATH_FILE = Path("/opt/huggingface/model_path")
+if MODEL_PATH_FILE.exists():
+    MODEL_NAME = MODEL_PATH_FILE.read_text().strip()
 MODEL_DEVICE = os.environ.get("SAFEWHISPER_DEVICE", "cpu")
 MODEL_COMPUTE = os.environ.get("SAFEWHISPER_COMPUTE", "int8")
 
@@ -55,7 +58,6 @@ def main() -> None:
     SOCKET_PATH.parent.mkdir(parents=True, exist_ok=True)
     SOCKET_PATH.unlink(missing_ok=True)
     with socketserver.UnixStreamServer(str(SOCKET_PATH), Handler) as server:
-        os.chmod(SOCKET_PATH, 0o660)
         server.serve_forever()
 
 

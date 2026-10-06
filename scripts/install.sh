@@ -10,6 +10,7 @@ command -v docker >/dev/null || { echo "Docker is required. Install/start Docker
 command -v swift >/dev/null || { echo "Swift/Xcode Command Line Tools are required." >&2; exit 1; }
 
 mkdir -p "$RUN_DIR" "$APP_DIR"
+rm -f "$RUN_DIR/engine.sock"
 
 echo "[1/4] Building isolated STT engine image"
 docker compose -f "$ROOT_DIR/docker-compose.yml" build
