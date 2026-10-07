@@ -12,8 +12,10 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var localMonitor: Any?
     private var isRecording = false
     private var currentRecordingURL: URL?
-    private let hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
-    private let hotkeyKeyCode: UInt16 = 49 // Space
+    private var hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
+    private var hotkeyKeyCode: UInt16 = 49 // Space
+    private var hotkeyMenuItem: NSMenuItem!
+    private var isCapturingHotkey = false
     private var socketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".safewhisper/run/helper.sock").path
@@ -21,6 +23,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        loadHotkey()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "WF"
         statusItem.menu = makeMenu()
@@ -36,7 +39,9 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
 
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Start/stop: ⌃⌥Space", action: nil, keyEquivalent: ""))
+        hotkeyMenuItem = NSMenuItem(title: "Set hotkey… (\(hotkeyDisplayName()))", action: #selector(beginHotkeyCapture), keyEquivalent: "")
+        hotkeyMenuItem.target = self
+        menu.addItem(hotkeyMenuItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit SafeWhisper", action: #selector(quit), keyEquivalent: "q"))
         return menu
@@ -44,20 +49,68 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
 
     private func installHotkey() {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self,
-                  event.keyCode == self.hotkeyKeyCode,
+            guard let self else { return }
+            if self.isCapturingHotkey {
+                self.captureHotkey(event)
+                return
+            }
+            guard event.keyCode == self.hotkeyKeyCode,
                   event.modifierFlags.intersection(.deviceIndependentFlagsMask) == self.hotkeyModifiers
             else { return }
             self.toggleRecording()
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self,
-                  event.keyCode == self.hotkeyKeyCode,
+            guard let self else { return event }
+            if self.isCapturingHotkey {
+                self.captureHotkey(event)
+                return nil
+            }
+            guard event.keyCode == self.hotkeyKeyCode,
                   event.modifierFlags.intersection(.deviceIndependentFlagsMask) == self.hotkeyModifiers
             else { return event }
             self.toggleRecording()
             return nil
         }
+    }
+
+    private func loadHotkey() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "hotkeyKeyCode") != nil {
+            hotkeyKeyCode = UInt16(defaults.integer(forKey: "hotkeyKeyCode"))
+            hotkeyModifiers = NSEvent.ModifierFlags(rawValue: UInt(defaults.integer(forKey: "hotkeyModifiers")))
+        }
+    }
+
+    @objc private func beginHotkeyCapture() {
+        isCapturingHotkey = true
+        hotkeyMenuItem.title = "Press a new hotkey…"
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func captureHotkey(_ event: NSEvent) {
+        guard isCapturingHotkey else { return }
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard !modifiers.isEmpty else {
+            hotkeyMenuItem.title = "Use a modifier + key…"
+            return
+        }
+        hotkeyModifiers = modifiers
+        hotkeyKeyCode = event.keyCode
+        let defaults = UserDefaults.standard
+        defaults.set(Int(hotkeyKeyCode), forKey: "hotkeyKeyCode")
+        defaults.set(Int(hotkeyModifiers.rawValue), forKey: "hotkeyModifiers")
+        isCapturingHotkey = false
+        hotkeyMenuItem.title = "Set hotkey… (\(hotkeyDisplayName()))"
+    }
+
+    private func hotkeyDisplayName() -> String {
+        var result = ""
+        if hotkeyModifiers.contains(.control) { result += "⌃" }
+        if hotkeyModifiers.contains(.option) { result += "⌥" }
+        if hotkeyModifiers.contains(.command) { result += "⌘" }
+        if hotkeyModifiers.contains(.shift) { result += "⇧" }
+        let keyNames: [UInt16: String] = [49: "Space", 36: "Return", 48: "Tab", 53: "Esc", 51: "Delete"]
+        return result + (keyNames[hotkeyKeyCode] ?? "Key \(hotkeyKeyCode)")
     }
 
     private func requestMicrophonePermission() {
