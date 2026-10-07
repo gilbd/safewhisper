@@ -53,6 +53,25 @@ docker compose up -d
 
 The first build downloads the model and is large. Do it on a connected machine, then export/import the image or publish it to the company's approved registry before entering the closed network.
 
+### Offline installation
+
+On a connected Mac, create the portable engine bundle:
+
+```bash
+docker compose build
+docker save safewhisper-engine:local | gzip -1 > safewhisper-engine-image.tar.gz
+shasum -a 256 safewhisper-engine-image.tar.gz
+```
+
+Transfer `safewhisper-engine-image.tar.gz` to the offline Mac. Verify the checksum, then install without rebuilding or downloading Python packages/model weights:
+
+```bash
+docker load < safewhisper-engine-image.tar.gz
+SAFEWHISPER_SKIP_DOCKER_BUILD=1 ./scripts/install.sh
+```
+
+The bundle includes the Docker base image, `faster-whisper`, `huggingface_hub`, FFmpeg, the SafeWhisper engine, and the local Whisper model. It is intentionally not committed to Git because it is several gigabytes.
+
 ## One-command macOS setup
 
 After Docker Desktop is running:

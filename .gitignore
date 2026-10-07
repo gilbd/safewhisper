@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 build/
+safewhisper-engine-image.tar.gz
 .env
 .env.*
 !.env.example

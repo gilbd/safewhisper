@@ -13,7 +13,7 @@ from pathlib import Path
 
 DEFAULT_SOCKET = Path.home() / ".safewhisper/run/helper.sock"
 DEFAULT_CONTAINER = "safewhisper-engine"
-ENGINE_SOCKET = "/run/safewhisper/engine.sock"
+DEFAULT_DOCKER = "/usr/local/bin/docker"
 MAX_REQUEST = 64 * 1024 * 1024
 
 BRIDGE_CODE = r'''
@@ -47,7 +47,7 @@ class Bridge:
     def _start(self) -> None:
         self._process = subprocess.Popen(
             [
-                "docker",
+                os.environ.get("SAFEWHISPER_DOCKER", DEFAULT_DOCKER),
                 "exec",
                 "-i",
                 self.container,

@@ -29,11 +29,19 @@ if [[ ! -x "$VENV_DIR/bin/python" ]] || ! "$VENV_DIR/bin/python" -c 'import sys;
 else
   echo "[1/6] Reusing SafeWhisper host helper environment"
 fi
-"$VENV_DIR/bin/pip" install --quiet --no-deps "$ROOT_DIR"
-docker compose -f "$ROOT_DIR/docker-compose.yml" build
+if [[ "${SAFEWHISPER_SKIP_DOCKER_BUILD:-0}" == "1" ]]; then
+  docker image inspect safewhisper-engine:local >/dev/null || {
+    echo "safewhisper-engine:local is missing. Run: docker load < safewhisper-engine-image.tar.gz" >&2
+    exit 1
+  }
+  echo "[2/4] Using preloaded SafeWhisper engine image (offline mode)"
+else
+  echo "[2/4] Building isolated STT engine image"
+  docker compose -f "$ROOT_DIR/docker-compose.yml" build
+fi
 
 echo "[2/4] Starting engine with network disabled"
-docker compose -f "$ROOT_DIR/docker-compose.yml" up -d
+docker compose -f "$ROOT_DIR/docker-compose.yml" up -d --force-recreate
 
 python3 - "$ROOT_DIR/scripts/com.safewhisper.helper.plist.template" "$PLIST_PATH" "$ROOT_DIR" "$VENV_DIR" "$HOME" <<'PY'
 import pathlib, sys
