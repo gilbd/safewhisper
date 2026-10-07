@@ -12,7 +12,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var localMonitor: Any?
     private var isRecording = false
     private var currentRecordingURL: URL?
-    private let hotkeyModifiers: NSEvent.ModifierFlags = [.command, .shift]
+    private let hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
     private let hotkeyKeyCode: UInt16 = 49 // Space
     private var socketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
@@ -36,7 +36,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
 
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Start/stop: ⌘⇧Space", action: nil, keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Start/stop: ⌃⌥Space", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit SafeWhisper", action: #selector(quit), keyEquivalent: "q"))
         return menu
