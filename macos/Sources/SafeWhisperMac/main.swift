@@ -15,6 +15,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
     private var hotkeyKeyCode: UInt16 = 49 // Space
     private var hotkeyMenuItem: NSMenuItem!
+    private var recordingMenuItem: NSMenuItem!
     private var isCapturingHotkey = false
     private var socketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
@@ -42,6 +43,9 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         hotkeyMenuItem = NSMenuItem(title: "Set hotkey… (\(hotkeyDisplayName()))", action: #selector(beginHotkeyCapture), keyEquivalent: "")
         hotkeyMenuItem.target = self
         menu.addItem(hotkeyMenuItem)
+        recordingMenuItem = NSMenuItem(title: "Start recording", action: #selector(toggleRecordingFromMenu), keyEquivalent: "")
+        recordingMenuItem.target = self
+        menu.addItem(recordingMenuItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit SafeWhisper", action: #selector(quit), keyEquivalent: "q"))
         return menu
@@ -128,6 +132,10 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func toggleRecordingFromMenu() {
+        toggleRecording()
+    }
+
     private func toggleRecording() {
         isRecording ? stopRecording() : startRecording()
     }
@@ -148,9 +156,11 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             try engine.start()
             recorder = engine
             isRecording = true
+            recordingMenuItem.title = "Stop recording"
             statusItem.button?.title = "● WF"
         } catch {
             NSLog("SafeWhisper recording failed: \(error)")
+            showError("Recording failed", error.localizedDescription)
             cleanupRecording()
         }
     }
@@ -164,6 +174,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         recorder = nil
         currentRecordingURL = nil
         isRecording = false
+        recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
         guard let file = recordingURL else { return }
         transcribeAndPaste(file)
@@ -180,6 +191,16 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
                 NSLog("SafeWhisper transcription failed: \(error)")
             }
             try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    private func showError(_ title: String, _ message: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = title
+            alert.informativeText = message
+            alert.runModal()
         }
     }
 
@@ -203,6 +224,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         audioFile = nil
         currentRecordingURL = nil
         isRecording = false
+        recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
     }
 
