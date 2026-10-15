@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import ApplicationServices
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -10,6 +11,8 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var audioFile: AVAudioFile?
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private var carbonHotKey: EventHotKeyRef?
+    private var carbonEventHandler: EventHandlerRef?
     private var isRecording = false
     private var currentRecordingURL: URL?
     private var hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
@@ -17,6 +20,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var hotkeyMenuItem: NSMenuItem!
     private var recordingMenuItem: NSMenuItem!
     private var isCapturingHotkey = false
+    private var lastHotkeyToggle = Date.distantPast
     private var socketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".safewhisper/run/helper.sock").path
@@ -36,6 +40,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
+        unregisterCarbonHotkey()
     }
 
     private func makeMenu() -> NSMenu {
@@ -54,14 +59,10 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private func installHotkey() {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return }
-            if self.isCapturingHotkey {
-                self.captureHotkey(event)
-                return
-            }
             guard event.keyCode == self.hotkeyKeyCode,
-                  event.modifierFlags.intersection(.deviceIndependentFlagsMask) == self.hotkeyModifiers
+                  event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(self.hotkeyModifiers)
             else { return }
-            self.toggleRecording()
+            self.requestHotkeyToggle()
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -69,12 +70,65 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
                 self.captureHotkey(event)
                 return nil
             }
-            guard event.keyCode == self.hotkeyKeyCode,
-                  event.modifierFlags.intersection(.deviceIndependentFlagsMask) == self.hotkeyModifiers
-            else { return event }
-            self.toggleRecording()
-            return nil
+            return event
         }
+        registerCarbonHotkey()
+    }
+
+    private func registerCarbonHotkey() {
+        unregisterCarbonHotkey()
+        var eventSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: OSType(kEventHotKeyPressed))
+        let userData = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        let handler: EventHandlerUPP = { _, _, userData in
+            guard let userData else { return noErr }
+            let app = Unmanaged<SafeWhisperApp>.fromOpaque(userData).takeUnretainedValue()
+            app.requestHotkeyToggle()
+            return noErr
+        }
+        let installStatus = InstallEventHandler(
+            GetApplicationEventTarget(),
+            handler,
+            1,
+            &eventSpec,
+            userData,
+            &carbonEventHandler
+        )
+        guard installStatus == noErr else {
+            NSLog("SafeWhisper: failed to install Carbon hotkey event handler: \(installStatus)")
+            return
+        }
+        var hotKeyID = EventHotKeyID(signature: OSType(0x53414645), id: 1)
+        let registerStatus = RegisterEventHotKey(
+            UInt32(hotkeyKeyCode),
+            carbonModifiers(),
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &carbonHotKey
+        )
+        if registerStatus != noErr {
+            NSLog("SafeWhisper: failed to register Carbon hotkey: \(registerStatus)")
+        }
+    }
+
+    private func unregisterCarbonHotkey() {
+        if let carbonHotKey {
+            UnregisterEventHotKey(carbonHotKey)
+            self.carbonHotKey = nil
+        }
+        if let carbonEventHandler {
+            RemoveEventHandler(carbonEventHandler)
+            self.carbonEventHandler = nil
+        }
+    }
+
+    private func carbonModifiers() -> UInt32 {
+        var result: UInt32 = 0
+        if hotkeyModifiers.contains(.command) { result |= UInt32(cmdKey) }
+        if hotkeyModifiers.contains(.option) { result |= UInt32(optionKey) }
+        if hotkeyModifiers.contains(.control) { result |= UInt32(controlKey) }
+        if hotkeyModifiers.contains(.shift) { result |= UInt32(shiftKey) }
+        return result
     }
 
     private func loadHotkey() {
@@ -105,6 +159,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         defaults.set(Int(hotkeyModifiers.rawValue), forKey: "hotkeyModifiers")
         isCapturingHotkey = false
         hotkeyMenuItem.title = "Set hotkey… (\(hotkeyDisplayName()))"
+        registerCarbonHotkey()
     }
 
     private func hotkeyDisplayName() -> String {
@@ -130,6 +185,13 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    private func requestHotkeyToggle() {
+        let now = Date()
+        guard now.timeIntervalSince(lastHotkeyToggle) > 0.35 else { return }
+        lastHotkeyToggle = now
+        toggleRecording()
     }
 
     @objc private func toggleRecordingFromMenu() {
