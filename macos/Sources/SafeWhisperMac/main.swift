@@ -15,6 +15,9 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var carbonEventHandler: EventHandlerRef?
     private var isRecording = false
     private var currentRecordingURL: URL?
+    private var targetApplication: NSRunningApplication?
+    private var processingTimer: Timer?
+    private var processingFrame = 0
     private var hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
     private var hotkeyKeyCode: UInt16 = 49 // Space
     private var hotkeyMenuItem: NSMenuItem!
@@ -97,7 +100,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             NSLog("SafeWhisper: failed to install Carbon hotkey event handler: \(installStatus)")
             return
         }
-        var hotKeyID = EventHotKeyID(signature: OSType(0x53414645), id: 1)
+        let hotKeyID = EventHotKeyID(signature: OSType(0x53414645), id: 1)
         let registerStatus = RegisterEventHotKey(
             UInt32(hotkeyKeyCode),
             carbonModifiers(),
@@ -204,6 +207,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
 
     private func startRecording() {
         guard !isRecording else { return }
+        targetApplication = NSWorkspace.shared.frontmostApplication
         let engine = AVAudioEngine()
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
@@ -238,8 +242,31 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         isRecording = false
         recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
-        guard let file = recordingURL else { return }
+        beginProcessingIndicator()
+        guard let file = recordingURL else {
+            stopProcessingIndicator()
+            return
+        }
         transcribeAndPaste(file)
+    }
+
+    private func beginProcessingIndicator() {
+        processingTimer?.invalidate()
+        processingFrame = 0
+        let frames = ["◌ WF", "◔ WF", "◑ WF", "◕ WF"]
+        statusItem.button?.title = frames[0]
+        processingTimer = Timer.scheduledTimer(withTimeInterval: 0.16, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.processingFrame = (self.processingFrame + 1) % frames.count
+            self.statusItem.button?.title = frames[self.processingFrame]
+        }
+    }
+
+    private func stopProcessingIndicator() {
+        processingTimer?.invalidate()
+        processingTimer = nil
+        processingFrame = 0
+        statusItem.button?.title = isRecording ? "● WF" : "WF"
     }
 
     private func transcribeAndPaste(_ file: URL) {
@@ -248,9 +275,16 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
                 let data = try Data(contentsOf: file)
                 let response = try UnixSocketClient(path: self?.socketPath ?? "").transcribe(audio: data, suffix: ".caf")
                 guard response.ok, let text = response.text, !text.isEmpty else { throw FlowError.message(response.error ?? "empty transcript") }
-                DispatchQueue.main.async { self?.paste(text) }
+                DispatchQueue.main.async {
+                    self?.stopProcessingIndicator()
+                    self?.paste(text)
+                }
             } catch {
                 NSLog("SafeWhisper transcription failed: \(error)")
+                DispatchQueue.main.async {
+                    self?.stopProcessingIndicator()
+                    self?.showError("Transcription failed", error.localizedDescription)
+                }
             }
             try? FileManager.default.removeItem(at: file)
         }
@@ -269,19 +303,43 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private func paste(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        let source = CGEventSource(stateID: .hidSystemState)
-        let vDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true)
-        let vUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
-        vDown?.flags = .maskCommand
-        vUp?.flags = .maskCommand
-        vDown?.post(tap: .cghidEventTap)
-        vUp?.post(tap: .cghidEventTap)
+        guard pasteboard.setString(text, forType: .string) else {
+            NSLog("SafeWhisper: failed to write transcript to pasteboard")
+            return
+        }
+
+        let target = targetApplication
+        let pasteAction = { [weak self] in
+            guard let self else { return }
+            let source = CGEventSource(stateID: .hidSystemState)
+            let vDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true)
+            let vUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
+            vDown?.flags = .maskCommand
+            vUp?.flags = .maskCommand
+            if let target {
+                vDown?.postToPid(target.processIdentifier)
+                vUp?.postToPid(target.processIdentifier)
+            } else {
+                vDown?.post(tap: .cghidEventTap)
+                vUp?.post(tap: .cghidEventTap)
+            }
+            self.targetApplication = nil
+        }
+
+        if let target, target.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            target.activate(options: [.activateIgnoringOtherApps])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: pasteAction)
+        } else {
+            pasteAction()
+        }
     }
 
     private func cleanupRecording() {
         recorder?.inputNode.removeTap(onBus: 0)
         recorder?.stop()
+        processingTimer?.invalidate()
+        processingTimer = nil
+        targetApplication = nil
         recorder = nil
         audioFile = nil
         currentRecordingURL = nil
