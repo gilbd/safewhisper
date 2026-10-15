@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE_DIR="${HOME}/.safewhisper"
 RUN_DIR="${STATE_DIR}/run"
 APP_DIR="${HOME}/Applications"
-APP_BUNDLE="${APP_DIR}/SafeWhisperMac.app"
+APP_BUNDLE="${APP_DIR}/SafeWhisper.app"
 VENV_DIR="${STATE_DIR}/venv"
 PLIST_PATH="${HOME}/Library/LaunchAgents/com.safewhisper.helper.plist"
 
