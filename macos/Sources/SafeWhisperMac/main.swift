@@ -316,13 +316,8 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             let vUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
             vDown?.flags = .maskCommand
             vUp?.flags = .maskCommand
-            if let target {
-                vDown?.postToPid(target.processIdentifier)
-                vUp?.postToPid(target.processIdentifier)
-            } else {
-                vDown?.post(tap: .cghidEventTap)
-                vUp?.post(tap: .cghidEventTap)
-            }
+            vDown?.post(tap: .cghidEventTap)
+            vUp?.post(tap: .cghidEventTap)
             self.targetApplication = nil
         }
 
