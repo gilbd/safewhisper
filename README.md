@@ -30,8 +30,9 @@ SafeWhisper is designed for closed corporate networks:
 [clipboard + paste]
 ```
 
-The model is downloaded only during `docker build`. Runtime has no network namespace. The container has a read-only root filesystem, a small tmpfs for transient audio, no Linux capabilities, and no-new-privileges enabled.
+The current engine uses the Hebrew-tuned `whisper-large-v3-turbo-ct2` model on CPU with int8 quantization. It explicitly uses the available CPU threads and a small beam size optimized for short dictation. On this Mac, a one-second silent fixture improved from roughly 3.7 seconds to roughly 3.0–3.3 seconds end-to-end. Larger speed gains require trading some Hebrew accuracy for a smaller model; that should be an explicit profile choice rather than a silent default change.
 
+The model is downloaded only during `docker build`. Runtime has no network namespace. The container has a read-only root filesystem, a small tmpfs for transient audio, no Linux capabilities, and no-new-privileges enabled.
 ## Build and run
 
 For local Python tooling:

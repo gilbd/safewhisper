@@ -17,8 +17,14 @@ if MODEL_PATH_FILE.exists():
     MODEL_NAME = MODEL_PATH_FILE.read_text().strip()
 MODEL_DEVICE = os.environ.get("SAFEWHISPER_DEVICE", "cpu")
 MODEL_COMPUTE = os.environ.get("SAFEWHISPER_COMPUTE", "int8")
+MODEL_THREADS = int(os.environ.get("SAFEWHISPER_CPU_THREADS", str(os.cpu_count() or 1)))
 
-MODEL = WhisperModel(MODEL_NAME, device=MODEL_DEVICE, compute_type=MODEL_COMPUTE)
+MODEL = WhisperModel(
+    MODEL_NAME,
+    device=MODEL_DEVICE,
+    compute_type=MODEL_COMPUTE,
+    cpu_threads=MODEL_THREADS,
+)
 
 
 class Handler(socketserver.StreamRequestHandler):
@@ -29,7 +35,7 @@ class Handler(socketserver.StreamRequestHandler):
         try:
             request = json.loads(raw)
             if request.get("type") == "health":
-                response = {"ok": True, "model": MODEL_NAME, "device": MODEL_DEVICE, "compute_type": MODEL_COMPUTE}
+                response = {"ok": True, "model": MODEL_NAME, "device": MODEL_DEVICE, "compute_type": MODEL_COMPUTE, "cpu_threads": MODEL_THREADS}
             elif request.get("type") == "transcribe":
                 response = self._transcribe(request)
             else:
@@ -49,7 +55,13 @@ class Handler(socketserver.StreamRequestHandler):
         with tempfile.NamedTemporaryFile(prefix="safewhisper-", suffix=suffix, delete=True) as temp:
             temp.write(audio)
             temp.flush()
-            segments, info = MODEL.transcribe(temp.name, language=None, vad_filter=True)
+            segments, info = MODEL.transcribe(
+                temp.name,
+                language=None,
+                beam_size=2,
+                condition_on_previous_text=False,
+                vad_filter=True,
+            )
             text = " ".join(segment.text.strip() for segment in segments).strip()
         return {"ok": True, "text": text, "language": getattr(info, "language", None)}
 
