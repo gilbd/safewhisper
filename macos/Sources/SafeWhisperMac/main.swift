@@ -22,6 +22,9 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var hotkeyKeyCode: UInt16 = 49 // Space
     private var hotkeyMenuItem: NSMenuItem!
     private var recordingMenuItem: NSMenuItem!
+    private var languageMenuItem: NSMenuItem!
+    private var languageModeItems: [String: NSMenuItem] = [:]
+    private var transcriptionLanguage = "auto"
     private var isCapturingHotkey = false
     private var lastHotkeyToggle = Date.distantPast
     private var socketPath: String {
@@ -32,6 +35,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         loadHotkey()
+        loadLanguageMode()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "WF"
         statusItem.menu = makeMenu()
@@ -54,6 +58,20 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         recordingMenuItem = NSMenuItem(title: "Start recording", action: #selector(toggleRecordingFromMenu), keyEquivalent: "")
         recordingMenuItem.target = self
         menu.addItem(recordingMenuItem)
+
+        languageMenuItem = NSMenuItem(title: "Language: Auto", action: nil, keyEquivalent: "")
+        let languageMenu = NSMenu()
+        for (code, title) in [("auto", "Auto-detect"), ("he", "Hebrew"), ("en", "English")] {
+            let item = NSMenuItem(title: title, action: #selector(selectLanguageMode(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = code
+            languageModeItems[code] = item
+            languageMenu.addItem(item)
+        }
+        languageMenuItem.submenu = languageMenu
+        menu.addItem(languageMenuItem)
+        updateLanguageMenu()
+
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit SafeWhisper", action: #selector(quit), keyEquivalent: "q"))
         return menu
@@ -139,6 +157,27 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         if defaults.object(forKey: "hotkeyKeyCode") != nil {
             hotkeyKeyCode = UInt16(defaults.integer(forKey: "hotkeyKeyCode"))
             hotkeyModifiers = NSEvent.ModifierFlags(rawValue: UInt(defaults.integer(forKey: "hotkeyModifiers")))
+        }
+    }
+
+    private func loadLanguageMode() {
+        let saved = UserDefaults.standard.string(forKey: "transcriptionLanguage") ?? "auto"
+        transcriptionLanguage = ["auto", "he", "en"].contains(saved) ? saved : "auto"
+    }
+
+    @objc private func selectLanguageMode(_ sender: NSMenuItem) {
+        guard let code = sender.representedObject as? String,
+              ["auto", "he", "en"].contains(code) else { return }
+        transcriptionLanguage = code
+        UserDefaults.standard.set(code, forKey: "transcriptionLanguage")
+        updateLanguageMenu()
+    }
+
+    private func updateLanguageMenu() {
+        let titles = ["auto": "Auto", "he": "Hebrew", "en": "English"]
+        languageMenuItem?.title = "Language: \(titles[transcriptionLanguage] ?? "Auto")"
+        for (code, item) in languageModeItems {
+            item.state = code == transcriptionLanguage ? .on : .off
         }
     }
 
@@ -247,7 +286,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             stopProcessingIndicator()
             return
         }
-        transcribeAndPaste(file)
+        transcribeAndPaste(file, language: transcriptionLanguage)
     }
 
     private func beginProcessingIndicator() {
@@ -269,11 +308,11 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         statusItem.button?.title = isRecording ? "● WF" : "WF"
     }
 
-    private func transcribeAndPaste(_ file: URL) {
+    private func transcribeAndPaste(_ file: URL, language: String) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 let data = try Data(contentsOf: file)
-                let response = try UnixSocketClient(path: self?.socketPath ?? "").transcribe(audio: data, suffix: ".caf")
+                let response = try UnixSocketClient(path: self?.socketPath ?? "").transcribe(audio: data, suffix: ".caf", language: language)
                 guard response.ok, let text = response.text, !text.isEmpty else { throw FlowError.message(response.error ?? "empty transcript") }
                 DispatchQueue.main.async {
                     self?.stopProcessingIndicator()
@@ -360,12 +399,15 @@ private struct EngineResponse: Decodable {
 private struct UnixSocketClient {
     let path: String
 
-    func transcribe(audio: Data, suffix: String) throws -> EngineResponse {
-        let request: [String: Any] = [
+    func transcribe(audio: Data, suffix: String, language: String) throws -> EngineResponse {
+        var request: [String: Any] = [
             "type": "transcribe",
             "suffix": suffix,
             "audio_base64": audio.base64EncodedString()
         ]
+        if language != "auto" {
+            request["language"] = language
+        }
         let payload = try JSONSerialization.data(withJSONObject: request)
         let connection = try UnixConnection(path: path)
         try connection.write(payload + Data([10]))

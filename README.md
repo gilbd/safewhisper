@@ -8,9 +8,9 @@ SafeWhisper is designed for closed corporate networks:
 - Audio is transcribed by a local `faster-whisper` engine.
 - The engine runs in Docker with `network_mode: none`.
 - The macOS app talks to a host-only Unix socket helper; the helper bridges requests through `docker exec` to the engine Unix socket.
-- Transcript is copied to the clipboard and pasted into the active app.
+- The transcript is copied to the clipboard and pasted into the active app.
+- The menu can select `Auto-detect`, `Hebrew`, or `English` transcription mode. The choice is persisted locally; use `English` for short English dictation because the Hebrew-tuned model can bias auto-detection toward Hebrew.
 - No audio or transcript is sent to a cloud transcription provider.
-
 ## Architecture
 
 ```text

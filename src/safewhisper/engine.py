@@ -10,6 +10,8 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 
+from .language import requested_language
+
 SOCKET_PATH = Path(os.environ.get("SAFEWHISPER_SOCKET", "/run/safewhisper/engine.sock"))
 MODEL_NAME = os.environ.get("SAFEWHISPER_MODEL", "ivrit-ai/whisper-large-v3-turbo-ct2")
 MODEL_PATH_FILE = Path("/opt/huggingface/model_path")
@@ -57,7 +59,7 @@ class Handler(socketserver.StreamRequestHandler):
             temp.flush()
             segments, info = MODEL.transcribe(
                 temp.name,
-                language=None,
+                language=requested_language(request),
                 beam_size=2,
                 condition_on_previous_text=False,
                 vad_filter=True,
