@@ -80,6 +80,10 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private func installHotkey() {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return }
+            if self.isRecording && event.keyCode == 53 {
+                self.cancelRecording()
+                return
+            }
             guard event.keyCode == self.hotkeyKeyCode,
                   event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(self.hotkeyModifiers)
             else { return }
@@ -87,6 +91,10 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
+            if self.isRecording && event.keyCode == 53 {
+                self.cancelRecording()
+                return nil
+            }
             if self.isCapturingHotkey {
                 self.captureHotkey(event)
                 return nil
@@ -287,6 +295,24 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             return
         }
         transcribeAndPaste(file, language: transcriptionLanguage)
+    }
+
+    private func cancelRecording() {
+        guard isRecording else { return }
+        let recordingURL = currentRecordingURL
+        recorder?.inputNode.removeTap(onBus: 0)
+        recorder?.stop()
+        audioFile = nil
+        recorder = nil
+        currentRecordingURL = nil
+        targetApplication = nil
+        isRecording = false
+        recordingMenuItem.title = "Start recording"
+        statusItem.button?.title = "WF"
+        if let recordingURL {
+            try? FileManager.default.removeItem(at: recordingURL)
+        }
+        NSLog("SafeWhisper recording cancelled with Escape")
     }
 
     private func beginProcessingIndicator() {
