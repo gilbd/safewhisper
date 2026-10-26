@@ -12,6 +12,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var carbonHotKey: EventHotKeyRef?
+    private var carbonEscapeHotKey: EventHotKeyRef?
     private var carbonEventHandler: EventHandlerRef?
     private var isRecording = false
     private var currentRecordingURL: URL?
@@ -108,10 +109,26 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         unregisterCarbonHotkey()
         var eventSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: OSType(kEventHotKeyPressed))
         let userData = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        let handler: EventHandlerUPP = { _, _, userData in
+        let handler: EventHandlerUPP = { eventHandlerCallRef, eventRef, userData in
             guard let userData else { return noErr }
             let app = Unmanaged<SafeWhisperApp>.fromOpaque(userData).takeUnretainedValue()
-            app.requestHotkeyToggle()
+            var hotKeyID = EventHotKeyID()
+            var actualSize: Int = 0
+            let parameterStatus = GetEventParameter(
+                eventRef,
+                EventParamName(kEventParamDirectObject),
+                EventParamType(kEventParamDirectObject),
+                nil,
+                MemoryLayout<EventHotKeyID>.size,
+                &actualSize,
+                &hotKeyID
+            )
+            if parameterStatus == noErr && hotKeyID.id == 2 {
+                app.cancelRecording()
+            } else {
+                app.requestHotkeyToggle()
+            }
+            _ = eventHandlerCallRef
             return noErr
         }
         let installStatus = InstallEventHandler(
@@ -140,7 +157,31 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func registerEscapeHotkey() {
+        guard carbonEscapeHotKey == nil else { return }
+        let escapeID = EventHotKeyID(signature: OSType(0x53414645), id: 2)
+        let status = RegisterEventHotKey(
+            53,
+            0,
+            escapeID,
+            GetApplicationEventTarget(),
+            0,
+            &carbonEscapeHotKey
+        )
+        if status != noErr {
+            NSLog("SafeWhisper: failed to register Carbon Escape hotkey: \(status)")
+        }
+    }
+
+    private func unregisterEscapeHotkey() {
+        if let carbonEscapeHotKey {
+            UnregisterEventHotKey(carbonEscapeHotKey)
+            self.carbonEscapeHotKey = nil
+        }
+    }
+
     private func unregisterCarbonHotkey() {
+        unregisterEscapeHotkey()
         if let carbonHotKey {
             UnregisterEventHotKey(carbonHotKey)
             self.carbonHotKey = nil
@@ -179,6 +220,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         transcriptionLanguage = code
         UserDefaults.standard.set(code, forKey: "transcriptionLanguage")
         updateLanguageMenu()
+        NSApp.hide(nil)
     }
 
     private func updateLanguageMenu() {
@@ -269,6 +311,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             try engine.start()
             recorder = engine
             isRecording = true
+            registerEscapeHotkey()
             recordingMenuItem.title = "Stop recording"
             statusItem.button?.title = "● WF"
         } catch {
@@ -287,6 +330,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         recorder = nil
         currentRecordingURL = nil
         isRecording = false
+        unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
         beginProcessingIndicator()
@@ -307,6 +351,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         currentRecordingURL = nil
         targetApplication = nil
         isRecording = false
+        unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
         if let recordingURL {
@@ -373,7 +418,9 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             return
         }
 
-        let target = targetApplication
+        let target = targetApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+            ? NSWorkspace.shared.frontmostApplication
+            : targetApplication
         let pasteAction = { [weak self] in
             guard let self else { return }
             let source = CGEventSource(stateID: .hidSystemState)
@@ -404,6 +451,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         audioFile = nil
         currentRecordingURL = nil
         isRecording = false
+        unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
     }
