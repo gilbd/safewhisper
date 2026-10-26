@@ -49,10 +49,15 @@ class Handler(socketserver.StreamRequestHandler):
     def _transcribe(self, request: dict) -> dict:
         encoded = request.get("audio_base64")
         if not encoded:
-            return {"ok": False, "error": "audio_base64 is required"}
-        audio = base64.b64decode(encoded, validate=True)
-        if not audio or len(audio) > 25 * 1024 * 1024:
-            return {"ok": False, "error": "audio is empty or too large"}
+            return {"ok": False, "error_code": "audio_empty", "error": "audio payload is empty"}
+        try:
+            audio = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError):
+            return {"ok": False, "error_code": "audio_invalid", "error": "audio payload is invalid base64"}
+        if not audio:
+            return {"ok": False, "error_code": "audio_empty", "error": "audio payload is empty"}
+        if len(audio) > 25 * 1024 * 1024:
+            return {"ok": False, "error_code": "audio_too_large", "error": "audio payload exceeds the 25 MiB request limit"}
         suffix = request.get("suffix", ".wav")
         with tempfile.NamedTemporaryFile(prefix="safewhisper-", suffix=suffix, delete=True) as temp:
             temp.write(audio)

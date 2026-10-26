@@ -10,6 +10,7 @@ SafeWhisper is designed for closed corporate networks:
 - The macOS app talks to a host-only Unix socket helper; the helper bridges requests through `docker exec` to the engine Unix socket.
 - The transcript is copied to the clipboard and pasted into the active app.
 - The menu can select `Auto-detect`, `Hebrew`, or `English` transcription mode. The choice is persisted locally; use `English` for short English dictation because the Hebrew-tuned model can bias auto-detection toward Hebrew.
+- Long recordings are split into 20-second local chunks before transcription and joined in order, so recordings of several minutes stay within the Unix-socket request limit.
 - No audio or transcript is sent to a cloud transcription provider.
 ## Architecture
 

@@ -404,9 +404,8 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private func transcribeAndPaste(_ file: URL, language: String) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
-                let data = try Data(contentsOf: file)
-                let response = try UnixSocketClient(path: self?.socketPath ?? "").transcribe(audio: data, suffix: ".caf", language: language)
-                guard response.ok, let text = response.text, !text.isEmpty else { throw FlowError.message(response.error ?? "empty transcript") }
+                let text = try UnixSocketClient(path: self?.socketPath ?? "").transcribeFile(file, language: language)
+                guard !text.isEmpty else { throw FlowError.message("empty transcript") }
                 DispatchQueue.main.async {
                     self?.stopProcessingIndicator()
                     self?.paste(text)
@@ -490,11 +489,48 @@ extension FlowError: LocalizedError {
 private struct EngineResponse: Decodable {
     let ok: Bool
     let text: String?
+    let errorCode: String?
     let error: String?
 }
 
 private struct UnixSocketClient {
     let path: String
+
+    func transcribeFile(_ url: URL, language: String) throws -> String {
+        let input = try AVAudioFile(forReading: url)
+        let format = input.processingFormat
+        let chunkFrames = AVAudioFrameCount(format.sampleRate * 20.0)
+        var texts: [String] = []
+
+        while input.framePosition < input.length {
+            let remaining = input.length - input.framePosition
+            let frameCount = AVAudioFrameCount(min(remaining, AVAudioFramePosition(chunkFrames)))
+            guard frameCount > 0,
+                  let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { break }
+            try input.read(into: buffer, frameCount: frameCount)
+            guard buffer.frameLength > 0 else { continue }
+
+            let chunkURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("safewhisper-chunk-\(UUID().uuidString).caf")
+            defer { try? FileManager.default.removeItem(at: chunkURL) }
+            let output = try AVAudioFile(forWriting: chunkURL, settings: format.settings)
+            try output.write(from: buffer)
+
+            let response = try transcribe(
+                audio: Data(contentsOf: chunkURL),
+                suffix: ".caf",
+                language: language
+            )
+            guard response.ok else {
+                let detail = response.error ?? "transcription failed"
+                throw FlowError.message(response.errorCode.map { "\($0): \(detail)" } ?? detail)
+            }
+            if let text = response.text, !text.isEmpty {
+                texts.append(text)
+            }
+        }
+        return texts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     func transcribe(audio: Data, suffix: String, language: String) throws -> EngineResponse {
         var request: [String: Any] = [
