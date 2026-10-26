@@ -27,6 +27,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var languageModeItems: [String: NSMenuItem] = [:]
     private var transcriptionLanguage = "auto"
     private var isCapturingHotkey = false
+    private var cancellationRequested = false
     private var lastHotkeyToggle = Date.distantPast
     private var socketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
@@ -304,6 +305,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         do {
             audioFile = try AVAudioFile(forWriting: url, settings: format.settings)
             currentRecordingURL = url
+            cancellationRequested = false
             input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
                 do { try self?.audioFile?.write(from: buffer) }
                 catch { NSLog("SafeWhisper audio write failed: \(error)") }
@@ -322,7 +324,12 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     }
 
     private func stopRecording() {
-        guard isRecording, let engine = recorder else { return }
+        guard isRecording else { return }
+        if cancellationRequested {
+            cancelRecording()
+            return
+        }
+        guard let engine = recorder else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         let recordingURL = currentRecordingURL
@@ -330,6 +337,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         recorder = nil
         currentRecordingURL = nil
         isRecording = false
+        cancellationRequested = false
         unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
@@ -338,11 +346,24 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             stopProcessingIndicator()
             return
         }
+        guard hasAudioFrames(file) else {
+            targetApplication = nil
+            try? FileManager.default.removeItem(at: file)
+            stopProcessingIndicator()
+            NSLog("SafeWhisper: ignoring empty recording")
+            return
+        }
         transcribeAndPaste(file, language: transcriptionLanguage)
+    }
+
+    private func hasAudioFrames(_ url: URL) -> Bool {
+        guard let file = try? AVAudioFile(forReading: url) else { return false }
+        return file.length > 0
     }
 
     private func cancelRecording() {
         guard isRecording else { return }
+        cancellationRequested = true
         let recordingURL = currentRecordingURL
         recorder?.inputNode.removeTap(onBus: 0)
         recorder?.stop()
@@ -351,6 +372,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         currentRecordingURL = nil
         targetApplication = nil
         isRecording = false
+        cancellationRequested = false
         unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
@@ -451,6 +473,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         audioFile = nil
         currentRecordingURL = nil
         isRecording = false
+        cancellationRequested = false
         unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
         statusItem.button?.title = "WF"
