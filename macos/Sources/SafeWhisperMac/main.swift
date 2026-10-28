@@ -19,6 +19,12 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
     private var targetApplication: NSRunningApplication?
     private var processingTimer: Timer?
     private var processingFrame = 0
+    private lazy var menuIcon: NSImage? = {
+        guard let url = Bundle.module.url(forResource: "SafeWhisperMenuIcon", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        return image
+    }()
     private var hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
     private var hotkeyKeyCode: UInt16 = 49 // Space
     private var hotkeyMenuItem: NSMenuItem!
@@ -39,7 +45,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         loadHotkey()
         loadLanguageMode()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "WF"
+        setStatusIndicator()
         statusItem.menu = makeMenu()
         installHotkey()
         requestMicrophonePermission()
@@ -50,6 +56,13 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         unregisterCarbonHotkey()
+    }
+
+    private func setStatusIndicator(title: String = "") {
+        statusItem?.button?.image = menuIcon
+        statusItem?.button?.imageScaling = .scaleProportionallyDown
+        statusItem?.button?.title = title
+        statusItem?.button?.imagePosition = title.isEmpty ? .imageOnly : .imageLeading
     }
 
     private func makeMenu() -> NSMenu {
@@ -315,7 +328,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
             isRecording = true
             registerEscapeHotkey()
             recordingMenuItem.title = "Stop recording"
-            statusItem.button?.title = "● WF"
+            setStatusIndicator(title: "●")
         } catch {
             NSLog("SafeWhisper recording failed: \(error)")
             showError("Recording failed", error.localizedDescription)
@@ -340,7 +353,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         cancellationRequested = false
         unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
-        statusItem.button?.title = "WF"
+        setStatusIndicator()
         beginProcessingIndicator()
         guard let file = recordingURL else {
             stopProcessingIndicator()
@@ -375,7 +388,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         cancellationRequested = false
         unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
-        statusItem.button?.title = "WF"
+        setStatusIndicator()
         if let recordingURL {
             try? FileManager.default.removeItem(at: recordingURL)
         }
@@ -386,11 +399,11 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         processingTimer?.invalidate()
         processingFrame = 0
         let frames = ["◌ WF", "◔ WF", "◑ WF", "◕ WF"]
-        statusItem.button?.title = frames[0]
+        setStatusIndicator(title: frames[0])
         processingTimer = Timer.scheduledTimer(withTimeInterval: 0.16, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             self.processingFrame = (self.processingFrame + 1) % frames.count
-            self.statusItem.button?.title = frames[self.processingFrame]
+            self.setStatusIndicator(title: frames[self.processingFrame])
         }
     }
 
@@ -398,7 +411,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         processingTimer?.invalidate()
         processingTimer = nil
         processingFrame = 0
-        statusItem.button?.title = isRecording ? "● WF" : "WF"
+        setStatusIndicator(title: isRecording ? "●" : "")
     }
 
     private func transcribeAndPaste(_ file: URL, language: String) {
@@ -475,7 +488,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         cancellationRequested = false
         unregisterEscapeHotkey()
         recordingMenuItem.title = "Start recording"
-        statusItem.button?.title = "WF"
+        setStatusIndicator()
     }
 
     @objc private func quit() { NSApp.terminate(nil) }

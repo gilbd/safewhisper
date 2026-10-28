@@ -8,6 +8,9 @@ let package = Package(
         .executable(name: "SafeWhisperMac", targets: ["SafeWhisperMac"])
     ],
     targets: [
-        .executableTarget(name: "SafeWhisperMac")
+        .executableTarget(
+            name: "SafeWhisperMac",
+            resources: [.process("Resources")]
+        )
     ]
 )
