@@ -23,6 +23,7 @@ final class SafeWhisperApp: NSObject, NSApplicationDelegate {
         guard let url = Bundle.module.url(forResource: "SafeWhisperMenuIcon", withExtension: "png"),
               let image = NSImage(contentsOf: url) else { return nil }
         image.isTemplate = true
+        image.size = NSSize(width: 18, height: 18)
         return image
     }()
     private var hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
