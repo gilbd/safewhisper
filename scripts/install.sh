@@ -62,6 +62,7 @@ echo "[3/4] Building SafeWhisper macOS client"
   mkdir -p "$APP_BUNDLE/Contents/MacOS"
   cp .build/arm64-apple-macosx/release/SafeWhisperMac "$APP_BUNDLE/Contents/MacOS/SafeWhisperMac"
   cp "$ROOT_DIR/macos/SafeWhisperMac.Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+  cp "$ROOT_DIR/macos/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 )
 chmod +x "$APP_BUNDLE/Contents/MacOS/SafeWhisperMac"
 
