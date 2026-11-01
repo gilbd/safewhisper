@@ -19,7 +19,10 @@ jobs:
       - name: Install Windows client dependencies
         run: python -m pip install -r windows/requirements.txt
       - name: Syntax check
-        run: python -m py_compile windows/safewhisper_windows.py src/safewhisper/*.py
+        shell: pwsh
+        run: |
+          python -m py_compile windows/safewhisper_windows.py
+          Get-ChildItem src/safewhisper -Filter *.py | ForEach-Object { python -m py_compile $_.FullName }
       - name: Build SafeWhisper.exe
         run: pyinstaller --noconfirm --clean --onefile --windowed --name SafeWhisper windows/safewhisper_windows.py
       - uses: actions/upload-artifact@v4
