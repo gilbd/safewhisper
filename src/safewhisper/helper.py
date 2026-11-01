@@ -14,6 +14,7 @@ from pathlib import Path
 DEFAULT_SOCKET = Path.home() / ".safewhisper/run/helper.sock"
 DEFAULT_CONTAINER = "safewhisper-engine"
 DEFAULT_DOCKER = "/usr/local/bin/docker"
+ENGINE_SOCKET = Path.home() / ".safewhisper/run/engine.sock"
 MAX_REQUEST = 64 * 1024 * 1024
 
 BRIDGE_CODE = r'''
@@ -44,7 +45,27 @@ class Bridge:
         self._process: subprocess.Popen[bytes] | None = None
         self._start()
 
+    def _ensure_container(self) -> None:
+        docker = os.environ.get("SAFEWHISPER_DOCKER", DEFAULT_DOCKER)
+        state = subprocess.run(
+            [docker, "inspect", "--format", "{{.State.Running}}", self.container],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if state.returncode != 0:
+            raise RuntimeError(f"SafeWhisper engine container is unavailable: {state.stderr.strip()}")
+        if state.stdout.strip().lower() == "true":
+            return
+        # Docker Desktop's host mount may not let the container unlink a stale
+        # Unix socket. Remove it from the host only while the container is stopped.
+        ENGINE_SOCKET.unlink(missing_ok=True)
+        started = subprocess.run([docker, "start", self.container], capture_output=True, text=True, check=False)
+        if started.returncode != 0:
+            raise RuntimeError(f"SafeWhisper engine failed to start: {started.stderr.strip()}")
+
     def _start(self) -> None:
+        self._ensure_container()
         self._process = subprocess.Popen(
             [
                 os.environ.get("SAFEWHISPER_DOCKER", DEFAULT_DOCKER),

@@ -59,7 +59,7 @@ echo "[3/4] Building SafeWhisper macOS client"
   cd "$ROOT_DIR/macos"
   swift build -c release
   rm -rf "$APP_BUNDLE"
-  mkdir -p "$APP_BUNDLE/Contents/MacOS"
+  mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
   cp .build/arm64-apple-macosx/release/SafeWhisperMac "$APP_BUNDLE/Contents/MacOS/SafeWhisperMac"
   cp "$ROOT_DIR/macos/SafeWhisperMac.Info.plist" "$APP_BUNDLE/Contents/Info.plist"
   cp "$ROOT_DIR/macos/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
