@@ -1,0 +1,7 @@
+sounddevice==0.5.1
+keyboard==0.13.5
+pyperclip==1.9.0
+pystray==0.19.5
+Pillow==11.1.0
+pywin32==308
+pyinstaller==6.11.1

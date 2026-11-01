@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import selectors
+import shutil
 import socket
 import socketserver
 import subprocess
@@ -13,7 +14,7 @@ from pathlib import Path
 
 DEFAULT_SOCKET = Path.home() / ".safewhisper/run/helper.sock"
 DEFAULT_CONTAINER = "safewhisper-engine"
-DEFAULT_DOCKER = "/usr/local/bin/docker"
+DEFAULT_DOCKER = shutil.which("docker") or "docker"
 ENGINE_SOCKET = Path.home() / ".safewhisper/run/engine.sock"
 MAX_REQUEST = 64 * 1024 * 1024
 

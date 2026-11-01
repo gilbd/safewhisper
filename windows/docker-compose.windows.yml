@@ -1,0 +1,4 @@
+services:
+  engine:
+    volumes:
+      - ${SAFEWHISPER_RUN_DIR:?Set SAFEWHISPER_RUN_DIR to the Windows SafeWhisper run directory}:/run/safewhisper
