@@ -18,7 +18,6 @@ import wave
 from ctypes import wintypes
 from pathlib import Path
 
-import pyperclip
 import sounddevice as sd
 from PIL import Image, ImageDraw
 import pystray
@@ -42,6 +41,7 @@ class SafeWhisperWindows:
         self.lock = threading.Lock()
         self.recording_thread: threading.Thread | None = None
         self.language = os.environ.get("SAFEWHISPER_LANGUAGE", "auto")
+        self.target_hwnd = None
         self.icon = pystray.Icon(
             "SafeWhisper",
             self._icon_image(),
@@ -134,6 +134,8 @@ class SafeWhisperWindows:
             self.recording = True
             self.cancel_requested = False
             self.frames.clear()
+            self.target_hwnd = ctypes.windll.user32.GetForegroundWindow()
+            logging.info("Recording started; target hwnd=%s", self.target_hwnd)
         self.recording_thread = threading.Thread(target=self._capture, daemon=True)
         self.recording_thread.start()
 
@@ -226,13 +228,74 @@ class SafeWhisperWindows:
                 data.extend(chunk)
         return json.loads(data.decode("utf-8"))
 
+    def _set_clipboard_text(self, text: str) -> None:
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        CF_UNICODETEXT = 13
+        GMEM_MOVEABLE = 0x0002
+        payload = (text + "\0").encode("utf-16-le")
+        for attempt in range(20):
+            if user32.OpenClipboard(None):
+                try:
+                    if not user32.EmptyClipboard():
+                        raise OSError("EmptyClipboard failed")
+                    handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(payload))
+                    if not handle:
+                        raise MemoryError("GlobalAlloc failed")
+                    address = kernel32.GlobalLock(handle)
+                    if not address:
+                        kernel32.GlobalFree(handle)
+                        raise MemoryError("GlobalLock failed")
+                    ctypes.memmove(address, payload, len(payload))
+                    kernel32.GlobalUnlock(handle)
+                    if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+                        kernel32.GlobalFree(handle)
+                        raise OSError("SetClipboardData failed")
+                    handle = None  # clipboard owns it after SetClipboardData
+                    return
+                finally:
+                    user32.CloseClipboard()
+            time.sleep(0.025)
+        raise RuntimeError("Windows clipboard remained locked")
+
+    def _send_ctrl_v(self) -> None:
+        user32 = ctypes.windll.user32
+        KEYEVENTF_KEYUP = 0x0002
+        INPUT_KEYBOARD = 1
+
+        class KEYBDINPUT(ctypes.Structure):
+            _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD), ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG))]
+
+        class INPUT_UNION(ctypes.Union):
+            _fields_ = [("ki", KEYBDINPUT)]
+
+        class INPUT(ctypes.Structure):
+            _anonymous_ = ("u",)
+            _fields_ = [("type", wintypes.DWORD), ("u", INPUT_UNION)]
+
+        inputs = (INPUT * 4)(
+            INPUT(INPUT_KEYBOARD, KEYBDINPUT(0x11, 0, 0, 0, None)),
+            INPUT(INPUT_KEYBOARD, KEYBDINPUT(0x56, 0, 0, 0, None)),
+            INPUT(INPUT_KEYBOARD, KEYBDINPUT(0x56, 0, KEYEVENTF_KEYUP, 0, None)),
+            INPUT(INPUT_KEYBOARD, KEYBDINPUT(0x11, 0, KEYEVENTF_KEYUP, 0, None)),
+        )
+        sent = user32.SendInput(4, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        if sent != 4:
+            raise OSError(f"SendInput sent {sent}/4 keyboard events")
+
     def _paste(self, text: str) -> None:
-        pyperclip.copy(text)
-        time.sleep(0.08)
-        ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)  # CTRL down
-        ctypes.windll.user32.keybd_event(0x56, 0, 0, 0)  # V down
-        ctypes.windll.user32.keybd_event(0x56, 0, 2, 0)  # V up
-        ctypes.windll.user32.keybd_event(0x11, 0, 2, 0)  # CTRL up
+        try:
+            self._set_clipboard_text(text)
+            user32 = ctypes.windll.user32
+            hwnd = self.target_hwnd
+            if hwnd:
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.SetForegroundWindow(hwnd)
+                time.sleep(0.15)
+            self._send_ctrl_v()
+            logging.info("Pasted %d characters into hwnd=%s", len(text), hwnd)
+        except Exception:
+            logging.exception("Paste failed")
 
     def run(self) -> None:
         self.icon.run()
