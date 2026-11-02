@@ -8,15 +8,16 @@ from __future__ import annotations
 
 import ctypes
 import json
+import logging
 import os
 import socket
 import tempfile
 import threading
 import time
 import wave
+from ctypes import wintypes
 from pathlib import Path
 
-import keyboard
 import pyperclip
 import sounddevice as sd
 from PIL import Image, ImageDraw
@@ -31,6 +32,10 @@ SAMPLE_WIDTH = 2
 
 class SafeWhisperWindows:
     def __init__(self) -> None:
+        log_path = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "SafeWhisper" / "windows.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(filename=log_path, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        logging.info("SafeWhisper Windows starting; socket=%s", SOCKET_PATH)
         self.recording = False
         self.cancel_requested = False
         self.frames = bytearray()
@@ -66,9 +71,55 @@ class SafeWhisperWindows:
         return image
 
     def _install_hotkeys(self) -> None:
-        hotkey = os.environ.get("SAFEWHISPER_HOTKEY", "ctrl+alt+shift+k")
-        keyboard.add_hotkey(hotkey, self.toggle_recording)
-        keyboard.add_hotkey("esc", self.cancel_recording)
+        self.hotkey_thread = threading.Thread(target=self._run_windows_keyboard_hook, daemon=True)
+        self.hotkey_thread.start()
+
+    def _run_windows_keyboard_hook(self) -> None:
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        WH_KEYBOARD_LL = 13
+        WM_KEYDOWN = 0x0100
+        WM_SYSKEYDOWN = 0x0104
+        WM_KEYUP = 0x0101
+        WM_SYSKEYUP = 0x0105
+        VK_ESCAPE = 0x1B
+        VK_CONTROL = {0xA2, 0xA3}
+        VK_MENU = {0xA4, 0xA5}
+        VK_SHIFT = {0x10, 0xA0, 0xA1}
+        VK_K = 0x4B
+        pressed = {"ctrl": False, "alt": False, "shift": False, "hotkey": False}
+        callback_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+
+        class KBDLLHOOKSTRUCT(ctypes.Structure):
+            _fields_ = [("vkCode", wintypes.DWORD), ("scanCode", wintypes.DWORD), ("flags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG))]
+
+        @callback_type
+        def callback(code, wparam, lparam):
+            if code >= 0 and wparam in (WM_KEYDOWN, WM_SYSKEYDOWN, WM_KEYUP, WM_SYSKEYUP):
+                key = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents.vkCode
+                down = wparam in (WM_KEYDOWN, WM_SYSKEYDOWN)
+                if key in VK_CONTROL: pressed["ctrl"] = down
+                if key in VK_MENU: pressed["alt"] = down
+                if key in VK_SHIFT: pressed["shift"] = down
+                if down and key == VK_ESCAPE:
+                    self.cancel_recording()
+                if down and key == VK_K and pressed["ctrl"] and pressed["alt"] and pressed["shift"] and not pressed["hotkey"]:
+                    pressed["hotkey"] = True
+                    self.toggle_recording()
+                if not down and key == VK_K:
+                    pressed["hotkey"] = False
+            return user32.CallNextHookEx(None, code, wparam, lparam)
+
+        hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, callback, kernel32.GetModuleHandleW(None), 0)
+        if not hook:
+            logging.exception("SetWindowsHookExW failed: %s", ctypes.get_last_error())
+            return
+        logging.info("Global Win32 keyboard hook registered")
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
+        user32.UnhookWindowsHookEx(hook)
 
     def toggle_recording(self) -> None:
         if self.recording:
