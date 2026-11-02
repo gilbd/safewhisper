@@ -28,7 +28,14 @@ if ($LASTEXITCODE -ne 0) {
 }
 docker compose -f (Join-Path $Root 'docker-compose.yml') -f (Join-Path $Root 'windows/docker-compose.windows.yml') up -d --force-recreate
 
-if (-not (Test-Path (Join-Path $Venv 'Scripts/python.exe'))) {
+$VenvPython = Join-Path $Venv 'Scripts/python.exe'
+$RecreateVenv = -not (Test-Path $VenvPython)
+if (-not $RecreateVenv) {
+    & $VenvPython -c "import sys; assert sys.version_info >= (3, 11)" *> $null
+    if ($LASTEXITCODE -ne 0) { $RecreateVenv = $true }
+}
+if ($RecreateVenv) {
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $Venv
     & $Python -m venv $Venv
 }
 $VenvPython = Join-Path $Venv 'Scripts/python.exe'
